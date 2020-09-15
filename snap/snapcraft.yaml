@@ -25,8 +25,12 @@ parts:
     build-packages:
       - git
       - python3
-    requirements:
-      - requirements.txt
+      - snapcraft
+      - gettext
+    stage-packages:
+      - coreutils
+    python-packages:
+      - wheel
   conf:
     after:
       - sos
@@ -47,6 +51,12 @@ apps:
     command: bin/sos
     plugs:
       - etc-sos-config
+      - log-observe
+      - system-observe
+      - hardware-observe
+      - network-observe
+      - kernel-module-observe
+      - home
   sosreport:
     command: bin/sosreport
     plugs:
