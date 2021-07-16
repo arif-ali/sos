@@ -1,0 +1,76 @@
+name: sos
+summary: Sos is an extensible, portable, support data collection tool
+description: |
+  Sos is an extensible, portable, support data collection tool
+  primarily aimed at Linux distributions and other UNIX-like operating
+  systems.
+grade: stable
+base: core20
+confinement: strict
+adopt-info: sos
+
+parts:
+  sos:
+    plugin: python
+    source: .
+    override-pull: |
+      snapcraftctl pull
+      snapcraftctl set-version $(git describe --tags --always)
+    build-packages:
+      - git
+      - python3
+      - snapcraft
+      - gettext
+    stage:
+      - -etc/sos/sos.conf
+      - -etc/tmpfiles.d/sos.conf
+  conf:
+    after:
+      - sos
+    plugin: dump
+    source: .
+    override-pull: |
+      snapcraftctl pull
+      patch -p1 -i snap/sos.conf.patch
+    organize:
+      sos.conf: /etc/sos/sos.conf
+      tmpfilesd-sos.conf: /etc/tmpfiles.d/sos.conf
+    stage: 
+      - -bin/*
+      - -sos/*
+      - -tests/*
+    prime:
+      - etc/sos/sos.conf
+      - etc/tmpfiles.d/sos.conf
+
+apps:
+  sos:
+    command: bin/sos
+    plugs:
+      - home
+      - log-observe
+      - kernel-module-observe
+  sosreport:
+    command: bin/sosreport
+    plugs:
+      - home
+      - log-observe
+      - kernel-module-observe
+  sos-collector:
+    command: bin/sos-collector
+    plugs:
+      - home
+      - log-observe
+      - kernel-module-observe
+  soscleaner:
+    command: bin/sos clean
+    plugs:
+      - home
+      - log-observe
+      - kernel-module-observe
+
+layout:
+  /etc/sos/sos.conf:
+    bind-file: $SNAP/etc/sos/sos.conf
+  /etc/tmpfiles.d/sos.conf:
+    bind-file: $SNAP/etc/tmpfiles.d/sos.conf
