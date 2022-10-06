@@ -114,6 +114,36 @@ rpm_build_task:
         path: ./sos_${BUILD_NAME}.rpm
         type: application/octet-stream
 
+# Make sure a user can manually build an rpm from the checkout
+deb_build_task:
+    alias: "deb_build"
+    name: "deb Build From Checkout - ${BUILD_NAME}"
+    gce_instance: *standardvm
+    matrix:
+        - env: &ubuntu
+            PROJECT: ${UBUNTU_PROJECT}
+            BUILD_NAME: ${UBUNTU_NAME}
+            VM_IMAGE_NAME: ${UBUNTU_IMAGE_NAME}
+        - env: &ubuntuprior
+            PROJECT: ${UBUNTU_PROJECT}
+            BUILD_NAME: ${UBUNTU_PRIOR_NAME}
+            VM_IMAGE_NAME: ${UBUNTU_PRIOR_IMAGE_NAME}
+        - env: &ubuntuprior2
+            PROJECT: ${UBUNTU_PROJECT}
+            BUILD_NAME: ${UBUNTU_PRIOR2_NAME}
+            VM_IMAGE_NAME: ${UBUNTU_PRIOR2_IMAGE_NAME}
+    setup_script: |
+        apt update --allow-releaseinfo-change
+        apt -y install dpkg-dev
+    main_script: |
+        dpkg-debbuild -rfakeroot -uc -us
+    # Retrieving the built rpm in later tasks requires knowing the exact name
+    # of the file. To avoid having to juggle version numbers here, rename it
+    prep_artifacts_script: mv ../sosreport-*.deb ./sos_${BUILD_NAME}.deb
+    packages_artifacts:
+        path: ./sos_${BUILD_NAME}.deb
+        type: application/octet-stream
+
 # Make sure a user can manually build a snap from the checkout
 snap_build_task:
     alias: "snap_build"
@@ -136,37 +166,53 @@ snap_build_task:
 # Run the stage one (no mocking) tests across all distros on GCP
 report_stageone_task:
     alias: "stageone_report"
-    name: "Report Stage One - $BUILD_NAME"
+    name: "Report Stage One - $BUILD_NAME - $BUILD_TYPE"
     depends_on:
         - rpm_build
         - snap_build
-    gce_instance: *standardvm
+        - deb_build
+    gce_instance:
+        <<: *standardvm
+        BUILD_TYPE: rpm
     matrix:
         - env: *centos9
         - env: *centos8
         - env: *fedora
         - env: *fedoraprior
-        - env: &ubuntu
-            PROJECT: ${UBUNTU_PROJECT}
-            BUILD_NAME: ${UBUNTU_NAME}
-            VM_IMAGE_NAME: ${UBUNTU_IMAGE_NAME}
-        - env: &ubuntuprior
-            PROJECT: ${UBUNTU_PROJECT}
-            BUILD_NAME: ${UBUNTU_PRIOR_NAME}
-            VM_IMAGE_NAME: ${UBUNTU_PRIOR_IMAGE_NAME}
-        - env: &ubuntuprior2
-            PROJECT: ${UBUNTU_PROJECT}
-            BUILD_NAME: ${UBUNTU_PRIOR2_NAME}
-            VM_IMAGE_NAME: ${UBUNTU_PRIOR2_IMAGE_NAME}
+        - env: &ubuntudeb
+            <<: *ubuntu
+            BUILD_TYPE: deb
+        - env:
+            <<: *ubuntuprior
+            BUILD_TYPE: deb
+        - env:
+            <<: *ubuntuprior2
+            BUILD_TYPE: deb
+        - env: &ubuntusnap
+            <<: *ubuntu
+            BUILD_TYPE: snap
+        - env:
+            <<: *ubuntuprior
+            BUILD_TYPE: snap
+        - env:
+            <<: *ubuntuprior2
+            BUILD_TYPE: snap
     setup_script: &setup |
         if [ $(command -v apt) ]; then
-            echo "$ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_test_amd64.snap"
-            $ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_test_amd64.snap
             apt -y purge sosreport
             apt update --allow-releaseinfo-change
             apt -y install python3-pip snapd
             systemctl start snapd
-            snap install ./sosreport_test_amd64.snap --classic --dangerous
+            if [ ${BUILD_TYPE} == "snap" ]; then
+                echo "$ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_test_amd64.snap"
+                $ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_test_amd64.snap
+                snap install ./sosreport_test_amd64.snap --classic --dangerous
+            fi
+            if [ ${BUILD_TYPE} == "deb" ]; then
+                echo "$ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_${BUILD_NAME}.deb"
+                $ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_${BUILD_NAME}.deb
+                apt -y install ./sosreport_${BUILD_NAME}.deb
+            fi
         fi
         if [ $(command -v dnf) ]; then
             echo "$ARTCURL/rpm%20Build%20From%20Checkout%20-%20${BUILD_NAME}/packages/sos_${BUILD_NAME}.rpm"
@@ -196,7 +242,7 @@ report_stagetwo_task:
         - env: *centos9
         - env: *centos8
         - env: *fedora
-        - env: *ubuntu
+        - env: *ubuntudeb
     setup_script: *setup
     install_pexpect_script: |
         if [ $(command -v apt) ]; then
