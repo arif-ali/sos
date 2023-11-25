@@ -1,0 +1,68 @@
+name: sosreport
+summary: Sos is an extensible, portable, support data collection tool
+description: |
+  Sos is an extensible, portable, support data collection tool
+  primarily aimed at Linux distributions and other UNIX-like operating
+  systems.
+grade: stable
+base: core24
+confinement: strict
+adopt-info: sos
+license: GPL-2.0-or-later
+environment:
+  PYTHONPATH: ${SNAP}/lib/python3.12/site-packages:${SNAP}/usr/lib/python3/dist-packages:${PYTHONPATH}
+  MAGIC: ${SNAP}/usr/share/file/magic.mgc
+
+parts:
+  sos:
+    plugin: python
+    source: .
+    override-pull: |
+      craftctl default
+      craftctl set version="$(git describe --tags --always)"
+    build-attributes:
+      - enable-patchelf
+    build-packages:
+      - git
+      - python3
+      - gettext
+      - python3-venv
+    stage-packages:
+      - coreutils
+      - cloud-init
+      - cryptsetup-bin
+      - e2fsprogs
+      - ethtool
+      - fdisk
+      - iproute2
+      - libatm1
+      - libpam-modules-bin
+      - mount
+      - procps
+      - python3-boto3
+      - python3-magic
+      - python3-packaging
+      - python3-pexpect
+      - systemd
+      - udev
+      - util-linux
+  cleanup:
+    after: [sos]
+    plugin: nil
+    build-snaps: [core24]
+    override-prime: |
+      set -eux
+      cd "/snap/core24/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" "$SNAPCRAFT_PRIME/usr/{}" \;
+      for CRUFT in bug lintian man; do
+        rm -rf $SNAPCRAFT_PRIME/usr/share/$CRUFT
+      done
+      find $SNAPCRAFT_PRIME/usr/share/doc/ -type f -not -name 'copyright' -delete
+      find $SNAPCRAFT_PRIME/usr/share -type d -empty -delete
+
+apps:
+  sos:
+    command: bin/sos
+  sosreport:
+    command: bin/sos report
+  sos-collector:
+    command: bin/sos collector

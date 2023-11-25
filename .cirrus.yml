@@ -180,11 +180,16 @@ deb_build_task:
 snap_build_task:
     skip: *man-changes-include
     alias: "snap_build"
-    name: "snap Build From Checkout"
+    name: "snap Build From Checkout - ${SNAP} snap"
     gce_instance:
         image_project: "${UBUNTU_PROJECT}"
         image_family: "${UBUNTU_SNAP_FAMILY_NAME}"
         type: e2-medium
+    matrix:
+        - env:
+            SNAP: "classic"
+        - env:
+            SNAP: "strictmode"
     setup_script: |
         apt update
         apt -y install snapd
@@ -192,6 +197,10 @@ snap_build_task:
         sed -i -e 's/adopt-info.*/version: test/g' -e '/set version/d' snap/snapcraft.yaml
         snap install snapcraft --classic
     main_script: |
+        if [ ${SNAP} == "strictmode" ]; then
+            cp snap/snapcraft_strictmode.yaml snapcraft.yaml
+            sed -i -e 's/adopt-info.*/version: test/g' -e '/set version/d' snapcraft.yaml
+        fi
         snapcraft --destructive-mode
     packages_artifacts:
         path: "*.snap"
@@ -217,16 +226,19 @@ report_stageone_task:
 #        - env: *fedoraprior
         - env: &ubuntu-2404
             PKG: "snap"
+            SNAP: "classic"
             PROJECT: ${UBUNTU_PROJECT}
             BUILD_NAME: "${UBUNTU_2404_NAME} - ${PKG}"
             VM_FAMILY_NAME: ${UBUNTU_2404_FAMILY_NAME}
         - env: &ubuntu-2204
             PKG: "snap"
+            SNAP: "classic"
             PROJECT: ${UBUNTU_PROJECT}
             BUILD_NAME: "${UBUNTU_2204_NAME} - ${PKG}"
             VM_FAMILY_NAME: ${UBUNTU_2204_FAMILY_NAME}
         - env: &ubuntu-latest-snap
             PKG: "snap"
+            SNAP: "classic"
             PROJECT: ${UBUNTU_PROJECT}
             BUILD_NAME: "${UBUNTU_LATEST_NAME} - ${PKG}"
             VM_FAMILY_NAME: ${UBUNTU_LATEST_FAMILY_NAME}
@@ -257,10 +269,19 @@ report_stageone_task:
             apt -y install python3-pip ethtool python3-systemd
             if [ ${PKG} == "snap" ] ; then
                 apt -y install snapd
-                echo "$ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_test_amd64.snap"
-                $ARTCURL/snap%20Build%20From%20Checkout/packages/sosreport_test_amd64.snap
+                echo "$ARTCURL/snap%20Build%20From%20Checkout%20-%20${SNAP}%20snap/packages/sosreport_test_amd64.snap"
+                $ARTCURL/snap%20Build%20From%20Checkout%20-%20${SNAP}%20snap/packages/sosreport_test_amd64.snap
                 systemctl start snapd
-                snap install ./sosreport_test_amd64.snap --classic --dangerous
+                if [ ${SNAP} == "classic" ] ; then
+                    SNAP_ARGS="--classic --dangerous"
+                elif [ ${SNAP} == "strictmode" ] ; then
+                    SNAP_ARGS="--devmode"
+                    SOS_SNAP=/snap/sosreport/current
+                    CORE_SNAP=/snap/core22/current
+                    PYTHONPATH=${SOS_SNAP}/lib/python3.12/site-packages:${SOS_SNAP}/usr/lib/python3/dist-packages:$PYTHONPATH
+                    PYTHONPATH=${CORE_SNAP}/lib/python3.12/site-packages:${CORE_SNAP}/usr/lib/python3/dist-packages:$PYTHONPATH
+                fi
+                snap install ./sosreport_test_amd64.snap ${SNAP_ARGS}
                 snap alias sosreport.sos sos
             elif [ ${PKG} == "deb" ]; then
                 echo "$ARTCURL/deb%20Build%20From%20Checkout%20-%20${DEB_BUILD_NAME}/packages/sos_${DEB_BUILD_NAME}.deb"
@@ -282,9 +303,9 @@ report_stageone_task:
     # run the unittests separately as they require a different PYTHONPATH in
     # order for the imports to work properly under avocado
     unittest_script: &unit_test |
-        PYTHONPATH=. avocado run tests/unittests/
+        PYTHONPATH=.:${PYTHONPATH} avocado run tests/unittests/
     main_script: &stageone_test
-        PYTHONPATH=tests/ avocado run -p TESTLOCAL=true --max-parallel-tasks=1 -t stageone tests/{cleaner,collect,report,vendor}_tests
+        PYTHONPATH=tests/:${PYTHONPATH} avocado run -p TESTLOCAL=true --max-parallel-tasks=1 -t stageone tests/{cleaner,collect,report,vendor}_tests
     on_failure:
         fail_script: &faillogs |
             ls -d /var/tmp/avocado* /root/avocado* 2> /dev/null | xargs tar cf sos-fail-logs.tar
