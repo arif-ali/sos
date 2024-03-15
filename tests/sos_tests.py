@@ -333,8 +333,9 @@ class BaseSoSTest(Test):
         :param content:  The string that should not be in stdout
         :type content:  ``str``
         """
-        found = re.search(r"(.*)?%s(.*)?" % content, self.cmd_output.stdout + self.cmd_output.stderr)
-        assert found, "Content string '%s' not in output" % content
+        content_raw = fr"{content}"
+        found = re.search(fr"(.*)?{content_raw}(.*)?", self.cmd_output.stdout + self.cmd_output.stderr)
+        assert found, f"Content string '{content}' not in output"
 
     def assertOutputNotContains(self, content):
         """Ensure that stdout did NOT contain the given content string
@@ -342,8 +343,9 @@ class BaseSoSTest(Test):
         :param content:  The string that should not be in stdout
         :type content:  ``str``
         """
-        found = re.search(r"(.*)?%s(.*)?" % content, self.cmd_output.stdout + self.cmd_output.stderr)
-        assert not found, "String '%s' present in stdout" % content
+        content_raw = fr"{content}"
+        found = re.search(fr"(.*)?{content_raw}(.*)?", self.cmd_output.stdout + self.cmd_output.stderr)
+        assert not found, f"String '{content}' present in stdout"
 
 
 class BaseSoSReportTest(BaseSoSTest):
@@ -424,7 +426,7 @@ class BaseSoSReportTest(BaseSoSTest):
         override
         """
         try:
-            return re.findall('/.*sosreport-.*tar.*\.gpg', self.cmd_output.stdout)[-1]
+            return re.findall('/.*sosreport-.*tar.*.gpg', self.cmd_output.stdout)[-1]
         except:
             return None
 
@@ -544,11 +546,13 @@ class BaseSoSReportTest(BaseSoSTest):
         """
         matched = False
         fname = self.get_name_in_archive(fname)
+        content_raw = fr"{content}"
         self.assertFileExists(fname)
         with open(fname, 'r') as lfile:
             _contents = lfile.read()
             for line in _contents.splitlines():
-                if re.match(".*%s.*" % content, line, re.I):
+                
+                if re.match(fr".*{content_raw}.*", line, re.I):
                     matched = True
                     break
         assert matched, "Content '%s' does not appear in %s\n%s" % (content, fname, _contents)
@@ -564,9 +568,10 @@ class BaseSoSReportTest(BaseSoSTest):
         """
         matched = False
         fname = self.get_name_in_archive(fname)
+        content_raw = fr"{content}"
         with open(fname, 'r') as mfile:
             for line in mfile.read().splitlines():
-                if re.match(".*%s.*" % content, line, re.I):
+                if re.match(fr".*{content_raw}.*", line, re.I):
                     matched = True
                     break
         assert not matched, "Content '%s' appears in file %s" % (content, fname)
