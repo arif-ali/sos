@@ -76,6 +76,14 @@ class OpenStackNeutron(Plugin):
 
         self.add_forbidden_path(ml2_certs)
 
+        self._get_command_outputs()
+
+        self.add_file_tags({
+            ".*/etc/neutron/plugins/ml2/ml2_conf.ini": "neutronml2_conf",
+            "/var/log/neutron/server.log": "neutron_server_log"
+        })
+
+    def _get_command_outputs(self):
         vars_all = [p in os.environ for p in [
                     'OS_USERNAME', 'OS_PASSWORD']]
 
@@ -107,11 +115,6 @@ class OpenStackNeutron(Plugin):
                         item = item.split()[1]
                         show_cmd = f"openstack {cmd} show {item}"
                         self.add_cmd_output(show_cmd)
-
-        self.add_file_tags({
-            ".*/etc/neutron/plugins/ml2/ml2_conf.ini": "neutronml2_conf",
-            "/var/log/neutron/server.log": "neutron_server_log"
-        })
 
     def apply_regex_sub(self, regexp, subst):
         """ Apply regex substitution """
