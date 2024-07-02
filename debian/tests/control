@@ -7,4 +7,5 @@ Depends:
  sos,
 Restrictions:
  allow-stderr,
+ isolation-machine,
  needs-root,

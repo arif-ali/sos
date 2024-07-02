@@ -1,18 +1,16 @@
 Source: sos
-Maintainer: sosreport Dev Team <sosreport-dev@lists.canonical.com>
-Uploaders:
- Arif Ali <arif.ali@canonical.com>,
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Nikhil Kshirsagar <nikhil.kshirsagar@canonical.com>
 Section: admin
 Priority: optional
-Standards-Version: 4.7.0
-Rules-Requires-Root: no
+Standards-Version: 4.5.0
 Build-Depends:
- debhelper-compat (= 13),
+ debhelper-compat (= 12),
  dh-python,
- fdisk,
  gettext,
  python3-all,
- python3-magic,
+ python3-coverage,
+ python3-nose,
  python3-packaging,
  python3-pexpect,
  python3-setuptools,
@@ -21,6 +19,7 @@ Build-Depends:
 Homepage: https://github.com/sosreport/sos
 Vcs-Browser: https://salsa.debian.org/sosreport-team/sosreport
 Vcs-Git: https://salsa.debian.org/sosreport-team/sosreport.git
+X-Python3-Version: >= 3.8
 
 Package: sos
 Replaces:
@@ -29,7 +28,6 @@ Breaks:
  sosreport (<< 4.8.2-4~),
 Architecture: any
 Depends:
- python3-magic,
  python3-packaging,
  python3-pexpect,
  python3-yaml,
@@ -40,7 +38,6 @@ Recommends:
  gpg,
  lsof,
  mount,
- python3-boto3,
  util-linux-extra,
 Description: Set of tools to gather troubleshooting data from a system
  Sos is a set of tools that gathers information about system

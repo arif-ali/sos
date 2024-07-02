@@ -1,0 +1,41 @@
+From: Nikhil Kshirsagar <nikhil.kshirsagar@canonical.com>
+Date: Wed, 26 Jul 2023 08:31:57 +0100
+Subject: Remove python3-magic related warning
+
+Do not bother spewing a warning about python3-magic version since
+that breaks autopkg tests due to the stderr spew. There's nothing
+that we can do anyway about it, since focal would not have the
+python3-magic version that sos needs for the new approach.
+
+Forwarded: not-needed
+Bug: https://github.com/sosreport/sos/issues/3021
+Applied-Upstream: https://github.com/sosreport/sos/pull/3025
+Bug-Ubuntu: https://launchpad.net/bugs/2028666
+---
+ sos/utilities.py | 13 -------------
+ 1 file changed, 13 deletions(-)
+
+diff --git a/sos/utilities.py b/sos/utilities.py
+index e666c64..6e92905 100644
+--- a/sos/utilities.py
++++ b/sos/utilities.py
+@@ -32,19 +32,6 @@ log = logging.getLogger('sos')
+ 
+ # try loading magic>=0.4.20 which implements detect_from_filename method
+ magic_mod = False
+-try:
+-    import magic
+-    magic.detect_from_filename(__file__)
+-    magic_mod = True
+-except (ImportError, AttributeError):
+-    from textwrap import fill
+-    msg = """\
+-WARNING: Failed to load 'magic' module version >= 0.4.20 which sos aims to \
+-use for detecting binary files. A less effective method will be used. It is \
+-recommended to install proper python3-magic package with the module.
+-"""
+-    log.warning(f'\n{fill(msg, 72, replace_whitespace=False)}\n')
+-
+ 
+ TIMEOUT_DEFAULT = 300
+ 
