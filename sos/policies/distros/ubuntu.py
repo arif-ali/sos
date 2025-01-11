@@ -43,10 +43,14 @@ class UbuntuPolicy(DebianPolicy):
             chroot=self.sysroot,
             remote_exec=remote_exec)
 
+        if self.dist_version() >= 25.04:
+            self.sos_pkg_name = "sos"
+
         try:
             if self.package_manager.pkg_by_name(
                     'sosreport')['pkg_manager'] == 'snap':
                 self.sos_bin_path = '/snap/bin'
+                self.sos_pkg_name = 'sosreport'
         except TypeError:
             # Use the default sos_bin_path
             pass

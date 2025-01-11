@@ -43,6 +43,9 @@ class DebianPolicy(LinuxPolicy):
                                                   remote_exec=remote_exec)
         self.valid_subclasses += [DebianPlugin]
 
+        if self.dist_version() >= self.deb_versions['trixie']:
+            self.sos_pkg_name = 'sos'
+
     def _get_pkg_name_for_binary(self, binary):
         # for binary not specified inside {..}, return binary itself
         return {
