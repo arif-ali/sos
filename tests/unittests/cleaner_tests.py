@@ -25,6 +25,7 @@ from sos.cleaner.mappings.ipv6_map import SoSIPv6Map
 from sos.cleaner.preppers import SoSPrepper
 from sos.cleaner.preppers.hostname import HostnamePrepper
 from sos.cleaner.preppers.ip import IPPrepper
+from sos.cleaner.preppers.netplan import NetplanPrepper
 from sos.cleaner.archives.sos import SoSReportArchive
 from sos.options import SoSOptions
 
@@ -451,3 +452,143 @@ class PrepperTests(unittest.TestCase):
             [],
             self.ipv4_prepper.get_parser_file_list('foobar', self.archive)
         )
+
+
+class NetplanPrepperTests(unittest.TestCase):
+    """Coverage for the netplan prepper: search domains and DHCP hostname
+    overrides must be surfaced into the hostname mapping."""
+
+    @staticmethod
+    def _archive(files):
+        """Build a minimal MockArchive whose pre-extract surface matches what
+        the prepper consumes: tarobj-less, with a directory layout discovered
+        via archive_path/extracted_path and get_file_content() lookups."""
+
+        class MockArchive:
+            tarobj = None
+            archive_path = '/nonexistent'
+            extracted_path = None
+            is_sos = True
+            is_insights = False
+            soslog = None
+
+            def get_file_content(self, path):
+                return files.get(path, '')
+
+        return MockArchive()
+
+    def _items(self, files, listing):
+        prepper = NetplanPrepper(SoSOptions(domains=[]))
+        archive = self._archive(files)
+        # Patch the file-enumeration step rather than fabricating an on-disk
+        # tree; _iter_netplan_files is exercised separately if needed.
+        prepper._iter_netplan_files = lambda _a: iter(listing)
+        items = prepper.get_items_for_map('hostname', archive)
+        return items, prepper.regex_items['hostname']
+
+    def test_search_domains_block_style(self):
+        content = (
+            "network:\n"
+            "  version: 2\n"
+            "  ethernets:\n"
+            "    eth0:\n"
+            "      nameservers:\n"
+            "        search:\n"
+            "          - corp.internal\n"
+            "          - lab.example.org\n"
+            "        addresses: [10.0.0.53]\n"
+        )
+        items, _ = self._items(
+            {'etc/netplan/01-netcfg.yaml': content},
+            ['etc/netplan/01-netcfg.yaml'],
+        )
+        self.assertIn('corp.internal', items)
+        self.assertIn('lab.example.org', items)
+
+    def test_search_domains_flow_style(self):
+        content = (
+            "network:\n"
+            "  ethernets:\n"
+            "    eth0:\n"
+            "      nameservers:\n"
+            "        search: [corp.internal, lab.example.org]\n"
+        )
+        items, _ = self._items(
+            {'etc/netplan/50-cloud-init.yaml': content},
+            ['etc/netplan/50-cloud-init.yaml'],
+        )
+        self.assertIn('corp.internal', items)
+        self.assertIn('lab.example.org', items)
+
+    def test_dhcp_hostname_override_fqdn(self):
+        content = (
+            "network:\n"
+            "  ethernets:\n"
+            "    eth0:\n"
+            "      dhcp4: true\n"
+            "      dhcp4-overrides:\n"
+            "        hostname: myhost.corp.internal\n"
+        )
+        items, regex_items = self._items(
+            {'run/netplan/99-dhcp.yaml': content},
+            ['run/netplan/99-dhcp.yaml'],
+        )
+        self.assertIn('myhost.corp.internal', items)
+        self.assertNotIn('myhost.corp.internal', regex_items)
+
+    def test_dhcp_hostname_override_shortname(self):
+        content = (
+            "network:\n"
+            "  ethernets:\n"
+            "    eth0:\n"
+            "      dhcp6-overrides:\n"
+            "        hostname: shorthost\n"
+        )
+        items, regex_items = self._items(
+            {'etc/netplan/01.yaml': content},
+            ['etc/netplan/01.yaml'],
+        )
+        self.assertEqual([], items)
+        self.assertIn('shorthost', regex_items)
+
+    def test_malformed_yaml_is_skipped(self):
+        items, _ = self._items(
+            {'etc/netplan/broken.yaml': "::: not yaml :::"},
+            ['etc/netplan/broken.yaml'],
+        )
+        self.assertEqual([], items)
+
+    def test_empty_file_is_ignored(self):
+        items, _ = self._items(
+            {'etc/netplan/empty.yaml': ''},
+            ['etc/netplan/empty.yaml'],
+        )
+        self.assertEqual([], items)
+
+    def test_multiple_files_and_interface_types(self):
+        eth = (
+            "network:\n"
+            "  ethernets:\n"
+            "    eth0:\n"
+            "      nameservers:\n"
+            "        search: [a.example]\n"
+        )
+        wifi = (
+            "network:\n"
+            "  wifis:\n"
+            "    wlan0:\n"
+            "      nameservers:\n"
+            "        search: [b.example]\n"
+            "      dhcp4-overrides:\n"
+            "        hostname: laptop.b.example\n"
+        )
+        items, _ = self._items(
+            {
+                'etc/netplan/10-eth.yaml': eth,
+                'etc/netplan/20-wifi.yaml': wifi,
+            },
+            ['etc/netplan/10-eth.yaml', 'etc/netplan/20-wifi.yaml'],
+        )
+        self.assertIn('a.example', items)
+        self.assertIn('b.example', items)
+        self.assertIn('laptop.b.example', items)
